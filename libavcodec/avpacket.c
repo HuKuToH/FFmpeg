@@ -32,6 +32,7 @@
 #include "packet.h"
 #include "packet_internal.h"
 
+#if FF_API_INIT_PACKET
 void av_init_packet(AVPacket *pkt)
 {
     pkt->pts                  = AV_NOPTS_VALUE;
@@ -49,6 +50,16 @@ FF_ENABLE_DEPRECATION_WARNINGS
     pkt->side_data            = NULL;
     pkt->side_data_elems      = 0;
 }
+#endif
+
+static void get_packet_defaults(AVPacket *pkt)
+{
+    memset(pkt, 0, sizeof(*pkt));
+
+    pkt->pts             = AV_NOPTS_VALUE;
+    pkt->dts             = AV_NOPTS_VALUE;
+    pkt->pos             = -1;
+}
 
 AVPacket *av_packet_alloc(void)
 {
@@ -56,7 +67,7 @@ AVPacket *av_packet_alloc(void)
     if (!pkt)
         return pkt;
 
-    av_init_packet(pkt);
+    get_packet_defaults(pkt);
 
     return pkt;
 }
@@ -92,7 +103,7 @@ int av_new_packet(AVPacket *pkt, int size)
     if (ret < 0)
         return ret;
 
-    av_init_packet(pkt);
+    get_packet_defaults(pkt);
     pkt->buf      = buf;
     pkt->data     = buf->data;
     pkt->size     = size;
@@ -611,9 +622,7 @@ void av_packet_unref(AVPacket *pkt)
 {
     av_packet_free_side_data(pkt);
     av_buffer_unref(&pkt->buf);
-    av_init_packet(pkt);
-    pkt->data = NULL;
-    pkt->size = 0;
+    get_packet_defaults(pkt);
 }
 
 int av_packet_ref(AVPacket *dst, const AVPacket *src)
@@ -668,9 +677,7 @@ AVPacket *av_packet_clone(const AVPacket *src)
 void av_packet_move_ref(AVPacket *dst, AVPacket *src)
 {
     *dst = *src;
-    av_init_packet(src);
-    src->data = NULL;
-    src->size = 0;
+    get_packet_defaults(src);
 }
 
 int av_packet_make_refcounted(AVPacket *pkt)
@@ -730,13 +737,13 @@ FF_ENABLE_DEPRECATION_WARNINGS
 #endif
 }
 
-int avpriv_packet_list_put(AVPacketList **packet_buffer,
-                           AVPacketList **plast_pktl,
+int avpriv_packet_list_put(PacketList **packet_buffer,
+                           PacketList **plast_pktl,
                            AVPacket      *pkt,
                            int (*copy)(AVPacket *dst, const AVPacket *src),
                            int flags)
 {
-    AVPacketList *pktl = av_mallocz(sizeof(AVPacketList));
+    PacketList *pktl = av_mallocz(sizeof(PacketList));
     int ret;
 
     if (!pktl)
@@ -767,11 +774,11 @@ int avpriv_packet_list_put(AVPacketList **packet_buffer,
     return 0;
 }
 
-int avpriv_packet_list_get(AVPacketList **pkt_buffer,
-                           AVPacketList **pkt_buffer_end,
+int avpriv_packet_list_get(PacketList **pkt_buffer,
+                           PacketList **pkt_buffer_end,
                            AVPacket      *pkt)
 {
-    AVPacketList *pktl;
+    PacketList *pktl;
     if (!*pkt_buffer)
         return AVERROR(EAGAIN);
     pktl        = *pkt_buffer;
@@ -783,12 +790,12 @@ int avpriv_packet_list_get(AVPacketList **pkt_buffer,
     return 0;
 }
 
-void avpriv_packet_list_free(AVPacketList **pkt_buf, AVPacketList **pkt_buf_end)
+void avpriv_packet_list_free(PacketList **pkt_buf, PacketList **pkt_buf_end)
 {
-    AVPacketList *tmp = *pkt_buf;
+    PacketList *tmp = *pkt_buf;
 
     while (tmp) {
-        AVPacketList *pktl = tmp;
+        PacketList *pktl = tmp;
         tmp = pktl->next;
         av_packet_unref(&pktl->pkt);
         av_freep(&pktl);
