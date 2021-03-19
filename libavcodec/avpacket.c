@@ -507,42 +507,55 @@ int av_packet_split_side_data(AVPacket *pkt){
 }
 #endif
 
+#if FF_API_BUFFER_SIZE_T
 uint8_t *av_packet_pack_dictionary(AVDictionary *dict, int *size)
+#else
+uint8_t *av_packet_pack_dictionary(AVDictionary *dict, size_t *size)
+#endif
 {
-    AVDictionaryEntry *t = NULL;
     uint8_t *data = NULL;
     *size = 0;
 
     if (!dict)
         return NULL;
 
-    while ((t = av_dict_get(dict, "", t, AV_DICT_IGNORE_SUFFIX))) {
-        const size_t keylen   = strlen(t->key);
-        const size_t valuelen = strlen(t->value);
-        const size_t new_size = *size + keylen + 1 + valuelen + 1;
-        uint8_t *const new_data = av_realloc(data, new_size);
+    for (int pass = 0; pass < 2; pass++) {
+        const AVDictionaryEntry *t = NULL;
+        size_t total_length = 0;
 
-        if (!new_data)
-            goto fail;
-        data = new_data;
-        if (new_size > INT_MAX)
-            goto fail;
+        while ((t = av_dict_get(dict, "", t, AV_DICT_IGNORE_SUFFIX))) {
+            for (int i = 0; i < 2; i++) {
+                const char  *str = i ? t->value : t->key;
+                const size_t len = strlen(str) + 1;
 
-        memcpy(data + *size, t->key, keylen + 1);
-        memcpy(data + *size + keylen + 1, t->value, valuelen + 1);
-
-        *size = new_size;
+                if (pass)
+                    memcpy(data + total_length, str, len);
+#if FF_API_BUFFER_SIZE_T
+                else if (len > INT_MAX - total_length)
+#else
+                else if (len > SIZE_MAX - total_length)
+#endif
+                    return NULL;
+                total_length += len;
+            }
+        }
+        if (pass)
+            break;
+        data = av_malloc(total_length);
+        if (!data)
+            return NULL;
+        *size = total_length;
     }
 
     return data;
-
-fail:
-    av_freep(&data);
-    *size = 0;
-    return NULL;
 }
 
+#if FF_API_BUFFER_SIZE_T
 int av_packet_unpack_dictionary(const uint8_t *data, int size, AVDictionary **dict)
+#else
+int av_packet_unpack_dictionary(const uint8_t *data, size_t size,
+                                AVDictionary **dict)
+#endif
 {
     const uint8_t *end;
     int ret;
