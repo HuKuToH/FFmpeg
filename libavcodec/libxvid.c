@@ -685,15 +685,17 @@ FF_ENABLE_DEPRECATION_WARNINGS
     if (x->quicktime_format) {
         AVFrame *picture;
         AVPacket *packet;
-        int size, got_packet, ret;
+        int size, got_packet;
 
         packet = av_packet_alloc();
         if (!packet)
             return AVERROR(ENOMEM);
 
         picture = av_frame_alloc();
-        if (!picture)
+        if (!picture) {
+            av_packet_free(&packet);
             return AVERROR(ENOMEM);
+        }
 
         xerr = xvid_encore(NULL, XVID_ENC_CREATE, &xvid_enc_create, NULL);
         if( xerr ) {
@@ -714,7 +716,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
         picture->data[2] = picture->data[1] + size / 4;
         memset(picture->data[0], 0, size);
         memset(picture->data[1], 128, size / 2);
-        ret = xvid_encode_frame(avctx, packet, picture, &got_packet);
+        xvid_encode_frame(avctx, packet, picture, &got_packet);
         av_packet_free(&packet);
         av_free(picture->data[0]);
         av_frame_free(&picture);
