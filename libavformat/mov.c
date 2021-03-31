@@ -2037,8 +2037,10 @@ static int mov_read_stco(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     if (!entries)
         return 0;
 
-    if (sc->chunk_offsets)
-        av_log(c->fc, AV_LOG_WARNING, "Duplicated STCO atom\n");
+    if (sc->chunk_offsets) {
+        av_log(c->fc, AV_LOG_WARNING, "Ignoring duplicated STCO atom\n");
+        return 0;
+    }
     av_free(sc->chunk_offsets);
     sc->chunk_count = 0;
     sc->chunk_offsets = av_malloc_array(entries, sizeof(*sc->chunk_offsets));
@@ -2671,8 +2673,10 @@ static int mov_read_stsc(MOVContext *c, AVIOContext *pb, MOVAtom atom)
 
     if (!entries)
         return 0;
-    if (sc->stsc_data)
-        av_log(c->fc, AV_LOG_WARNING, "Duplicated STSC atom\n");
+    if (sc->stsc_data) {
+        av_log(c->fc, AV_LOG_WARNING, "Ignoring duplicated STSC atom\n");
+        return 0;
+    }
     av_free(sc->stsc_data);
     sc->stsc_count = 0;
     sc->stsc_data = av_malloc_array(entries, sizeof(*sc->stsc_data));
@@ -3018,7 +3022,7 @@ static int mov_read_sdtp(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     av_freep(&sc->sdtp_data);
     sc->sdtp_count = 0;
 
-    sc->sdtp_data = av_mallocz(entries);
+    sc->sdtp_data = av_malloc(entries);
     if (!sc->sdtp_data)
         return AVERROR(ENOMEM);
 
