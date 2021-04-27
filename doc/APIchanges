@@ -2,18 +2,51 @@ Never assume the API of libav* to be stable unless at least 1 month has passed
 since the last major version increase or the API was added.
 
 The last version increases were:
-libavcodec:    2017-10-21
-libavdevice:   2017-10-21
-libavfilter:   2017-10-21
-libavformat:   2017-10-21
-libavresample: 2017-10-21
-libpostproc:   2017-10-21
-libswresample: 2017-10-21
-libswscale:    2017-10-21
-libavutil:     2017-10-21
+libavcodec:    2021-04-27
+libavdevice:   2021-04-27
+libavfilter:   2021-04-27
+libavformat:   2021-04-27
+libpostproc:   2021-04-27
+libswresample: 2021-04-27
+libswscale:    2021-04-27
+libavutil:     2021-04-27
 
 
 API changes, most recent first:
+
+2021-04-27 - xxxxxxxxxx - lavc yyyyyyyyy - avcodec.h
+  Constified AVCodecParserContext.parser.
+
+2021-04-27 - xxxxxxxxxx - lavd yyyyyyyyy - avdevice.h
+  The av_*_device_next API functions now accept and return
+  pointers to const AVInputFormat resp. AVOutputFormat.
+
+2021-04-27 - xxxxxxxxxx - lavd yyyyyyyyy - avdevice.h
+  avdevice_list_input_sources and avdevice_list_output_sinks now accept
+  pointers to const AVInputFormat resp. const AVOutputFormat.
+
+2021-04-27 - xxxxxxxxxx - lavf yyyyyyyyy - avformat.h
+  av_find_best_stream now uses a const AVCodec ** parameter
+  for the returned decoder.
+
+2021-04-27 - xxxxxxxxxx - lavc yyyyyyyyy - codec.h
+  avcodec_find_encoder_by_name(), avcodec_find_encoder(),
+  avcodec_find_decoder_by_name() and avcodec_find_decoder()
+  now return a pointer to const AVCodec.
+
+2021-04-27 - xxxxxxxxxx - lavf yyyyyyyyy - avformat.h
+  Constified AVFormatContext.*_codec.
+
+2021-04-27 - xxxxxxxxxx - lavf yyyyyyyyy - avformat.h
+  Constified the pointers to AVInputFormats and AVOutputFormats
+  in AVFormatContext, avformat_alloc_output_context2(),
+  av_find_input_format(), av_probe_input_format(),
+  av_probe_input_format2(), av_probe_input_format3(),
+  av_probe_input_buffer2(), av_probe_input_buffer(),
+  avformat_open_input(), av_guess_format() and av_guess_codec().
+  Furthermore, constified the AVProbeData in av_probe_input_format(),
+  av_probe_input_format2() and av_probe_input_format3().
+
 2021-04-19 - xxxxxxxxxx - lavu 56.74.100 - tx.h
   Add AV_TX_FULL_IMDCT and AV_TX_UNALIGNED.
 
