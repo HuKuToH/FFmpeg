@@ -745,6 +745,20 @@ Select overlap-save method. Not interpolated samples remain unchanged.
 Default value is @code{a}.
 @end table
 
+@section adecorrelate
+Apply decorrelation to input audio stream.
+
+The filter accepts the following options:
+
+@table @option
+@item stages
+Set decorrelation stages of filtering. Allowed
+range is from 1 to 16. Default value is 6.
+
+@item seed
+Set random seed used for setting delay in samples across channels.
+@end table
+
 @section adelay
 
 Delay one or more audio channels.
@@ -2974,6 +2988,35 @@ This filter supports the following commands:
 Change filter tempo scale factor.
 Syntax for the command is : "@var{tempo}"
 @end table
+
+@section atilt
+Apply spectral tilt filter to audio stream.
+
+This filter apply any spectral roll-off slope over any specified frequency band.
+
+The filter accepts the following options:
+
+@table @option
+@item freq
+Set central frequency of tilt in Hz. Default is 10000 Hz.
+
+@item slope
+Set slope direction of tilt. Default is 0. Allowed range is from -1 to 1.
+
+@item width
+Set width of tilt. Default is 1000. Allowed range is from 100 to 10000.
+
+@item order
+Set order of tilt filter.
+
+@item level
+Set input volume level. Allowed range is from 0 to 4.
+Defalt is 1.
+@end table
+
+@subsection Commands
+
+This filter supports the all above options as @ref{commands}.
 
 @section atrim
 
