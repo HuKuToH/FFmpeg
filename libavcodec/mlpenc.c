@@ -28,6 +28,7 @@
 #include "libavutil/channel_layout.h"
 #include "libavutil/crc.h"
 #include "libavutil/avstring.h"
+#include "libavutil/intmath.h"
 #include "libavutil/samplefmt.h"
 #include "libavutil/thread.h"
 #include "mlp.h"
@@ -130,7 +131,6 @@ typedef struct MLPEncodeContext {
     int32_t        *sample_buffer;          ///< Pointer to current access unit samples.
     int32_t        *major_scratch_buffer;   ///< Scratch buffer big enough to fit all data for one entire major frame interval.
     int32_t        last_frames;             ///< Signal last frames.
-    int32_t        last_index;
 
     int32_t        *lpc_sample_buffer;
 
@@ -1304,13 +1304,11 @@ static void input_to_sample_buffer(MLPEncodeContext *ctx)
 /** Counts the number of trailing zeroes in a value */
 static int number_trailing_zeroes(int32_t sample)
 {
-    int bits;
-
-    for (bits = 0; bits < 24 && !(sample & (1<<bits)); bits++);
+    int bits = ff_ctz(sample);
 
     /* All samples are 0. TODO Return previous quant_step_size to avoid
      * writing a new header. */
-    if (bits == 24)
+    if (bits >= 24)
         return 0;
 
     return bits;
@@ -2203,7 +2201,6 @@ static int mlp_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
         if ((ret = ff_af_queue_add(&ctx->afq, frame)) < 0)
             return ret;
         ctx->last_frames = ctx->max_restart_interval;
-        ctx->last_index = ctx->frame_index;
     }
 
     data = frame ? frame->data[0] : NULL;
