@@ -2290,13 +2290,8 @@ input_and_return:
             ctx->next_major_frame_size = 0;
             ctx->major_number_of_frames = ctx->next_major_number_of_frames;
             ctx->next_major_number_of_frames = 0;
-
-            if (!ctx->major_frame_size)
-                goto no_data_left;
         }
     }
-
-no_data_left:
 
     if (!frame)
         avctx->frame_number++;
@@ -2305,7 +2300,8 @@ no_data_left:
         ff_af_queue_remove(&ctx->afq, avctx->frame_size, &avpkt->pts,
                            &avpkt->duration);
 
-        avpkt->size = bytes_written;
+        av_shrink_packet(avpkt, bytes_written);
+
         *got_packet = 1;
     } else {
         *got_packet = 0;
