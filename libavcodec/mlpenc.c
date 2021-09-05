@@ -130,7 +130,7 @@ typedef struct MLPEncodeContext {
     int32_t        *write_buffer;           ///< Pointer to data currently being written to bitstream.
     int32_t        *sample_buffer;          ///< Pointer to current access unit samples.
     int32_t        *major_scratch_buffer;   ///< Scratch buffer big enough to fit all data for one entire major frame interval.
-    int32_t        last_frames;             ///< Signal last frames.
+    int32_t         last_frames;            ///< Signal last frames.
 
     int32_t        *lpc_sample_buffer;
 
@@ -1178,24 +1178,19 @@ static void write_frame_headers(MLPEncodeContext *ctx, uint8_t *frame_header,
 }
 
 /** Writes an entire access unit to the bitstream. */
-static unsigned int write_access_unit(MLPEncodeContext *ctx, uint8_t *buf,
-                                      int buf_size, int restart_frame)
+static int write_access_unit(MLPEncodeContext *ctx, uint8_t *buf,
+                             int buf_size, int restart_frame)
 {
     uint16_t substream_data_len[MAX_SUBSTREAMS];
     uint8_t *buf1, *buf0 = buf;
     unsigned int substr;
     int total_length;
 
-    if (buf_size < 4)
-        return AVERROR(EINVAL);
-
     /* Frame header will be written at the end. */
     buf      += 4;
     buf_size -= 4;
 
     if (restart_frame) {
-        if (buf_size < 28)
-            return AVERROR(EINVAL);
         write_major_sync(ctx, buf, buf_size);
         buf      += 28;
         buf_size -= 28;
@@ -1509,28 +1504,28 @@ static void lossless_matrix_coeffs(MLPEncodeContext *ctx)
 
     mode = estimate_stereo_mode(ctx);
 
-    switch(mode) {
-        /* TODO: add matrix for MID_SIDE */
-        case MLP_CHMODE_MID_SIDE:
-        case MLP_CHMODE_LEFT_RIGHT:
-            mp->count    = 0;
-            break;
-        case MLP_CHMODE_LEFT_SIDE:
-            mp->count    = 1;
-            mp->outch[0] = 1;
-            mp->coeff[0][0] =  1 << 14; mp->coeff[0][1] = -(1 << 14);
-            mp->coeff[0][2] =  0 << 14; mp->coeff[0][2] =   0 << 14;
-            mp->forco[0][0] =  1 << 14; mp->forco[0][1] = -(1 << 14);
-            mp->forco[0][2] =  0 << 14; mp->forco[0][2] =   0 << 14;
-            break;
-        case MLP_CHMODE_RIGHT_SIDE:
-            mp->count    = 1;
-            mp->outch[0] = 0;
-            mp->coeff[0][0] =  1 << 14; mp->coeff[0][1] =   1 << 14;
-            mp->coeff[0][2] =  0 << 14; mp->coeff[0][2] =   0 << 14;
-            mp->forco[0][0] =  1 << 14; mp->forco[0][1] = -(1 << 14);
-            mp->forco[0][2] =  0 << 14; mp->forco[0][2] =   0 << 14;
-            break;
+    switch (mode) {
+    /* TODO: add matrix for MID_SIDE */
+    case MLP_CHMODE_MID_SIDE:
+    case MLP_CHMODE_LEFT_RIGHT:
+        mp->count    = 0;
+        break;
+    case MLP_CHMODE_LEFT_SIDE:
+        mp->count    = 1;
+        mp->outch[0] = 1;
+        mp->coeff[0][0] =  1 << 14; mp->coeff[0][1] = -(1 << 14);
+        mp->coeff[0][2] =  0 << 14; mp->coeff[0][2] =   0 << 14;
+        mp->forco[0][0] =  1 << 14; mp->forco[0][1] = -(1 << 14);
+        mp->forco[0][2] =  0 << 14; mp->forco[0][2] =   0 << 14;
+        break;
+    case MLP_CHMODE_RIGHT_SIDE:
+        mp->count    = 1;
+        mp->outch[0] = 0;
+        mp->coeff[0][0] =  1 << 14; mp->coeff[0][1] =   1 << 14;
+        mp->coeff[0][2] =  0 << 14; mp->coeff[0][2] =   0 << 14;
+        mp->forco[0][0] =  1 << 14; mp->forco[0][1] = -(1 << 14);
+        mp->forco[0][2] =  0 << 14; mp->forco[0][2] =   0 << 14;
+        break;
     }
 
     for (mat = 0; mat < mp->count; mat++)
@@ -2091,13 +2086,13 @@ static void set_major_params(MLPEncodeContext *ctx)
         ctx->prev_channel_params = restart_channel_params;
 
         for (index = 0; index < MAJOR_HEADER_INTERVAL + 1; index++) {
-                ctx->cur_decoding_params = &ctx->major_decoding_params[index][substr];
-                ctx->cur_channel_params = ctx->major_channel_params[index];
+            ctx->cur_decoding_params = &ctx->major_decoding_params[index][substr];
+            ctx->cur_channel_params = ctx->major_channel_params[index];
 
-                ctx->major_params_changed[index][substr] = compare_decoding_params(ctx);
+            ctx->major_params_changed[index][substr] = compare_decoding_params(ctx);
 
-                ctx->prev_decoding_params = ctx->cur_decoding_params;
-                ctx->prev_channel_params = ctx->cur_channel_params;
+            ctx->prev_decoding_params = ctx->cur_decoding_params;
+            ctx->prev_channel_params = ctx->cur_channel_params;
         }
     }
 
@@ -2114,7 +2109,6 @@ static void analyze_sample_buffer(MLPEncodeContext *ctx)
     unsigned int substr;
 
     for (substr = 0; substr < ctx->num_substreams; substr++) {
-
         ctx->cur_restart_header = &ctx->restart_header[substr];
         ctx->cur_decoding_params = seq_dp + 1*(ctx->num_substreams) + substr;
         ctx->cur_channel_params = seq_cp + 1*(ctx->avctx->channels);
@@ -2183,7 +2177,7 @@ static int mlp_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
                             const AVFrame *frame, int *got_packet)
 {
     MLPEncodeContext *ctx = avctx->priv_data;
-    unsigned int bytes_written = 0;
+    int bytes_written = 0;
     int restart_frame, ret;
     uint8_t *data;
 
@@ -2316,8 +2310,14 @@ no_data_left:
     }
     if (!frame)
         avctx->frame_number++;
-    avpkt->size = bytes_written;
-    *got_packet = 1;
+
+    if (bytes_written > 0) {
+        avpkt->size = bytes_written;
+        *got_packet = 1;
+    } else {
+        *got_packet = 0;
+    }
+
     return 0;
 }
 
