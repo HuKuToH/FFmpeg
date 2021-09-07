@@ -187,7 +187,6 @@ typedef struct MLPEncodeContext {
     AudioFrameQueue afq;
 
     /* Analysis stage. */
-    unsigned int    starting_frame_index;
     unsigned int    number_of_frames;
     unsigned int    number_of_samples;
     unsigned int    number_of_subblocks;
@@ -1226,7 +1225,7 @@ static void input_to_sample_buffer(MLPEncodeContext *ctx)
     int32_t *sample_buffer = ctx->sample_buffer;
 
     for (unsigned int index = 0; index < ctx->number_of_frames; index++) {
-        unsigned int cur_index = (ctx->starting_frame_index + index) % ctx->max_restart_interval;
+        unsigned int cur_index = (ctx->frame_index + index + 1) % ctx->max_restart_interval;
         int32_t *input_buffer = ctx->inout_buffer + cur_index * ctx->one_sample_buffer_size;
 
         for (unsigned int i = 0; i < ctx->avctx->frame_size; i++) {
@@ -1970,12 +1969,8 @@ static void set_major_params(MLPEncodeContext *ctx)
     RestartHeader *rh = ctx->cur_restart_header;
     uint8_t max_huff_lsbs = 0;
     uint8_t max_output_bits = 0;
-    DecodingParams *seq_dp = (DecodingParams *) ctx->decoding_params+
-        (ctx->restart_intervals - 1)*(ctx->sequence_size)*(ctx->avctx->channels) +
-        (ctx->seq_offset[ctx->restart_intervals - 1])*(ctx->avctx->channels);
-    ChannelParams *seq_cp = (ChannelParams *) ctx->channel_params +
-        (ctx->restart_intervals - 1)*(ctx->sequence_size)*(ctx->avctx->channels) +
-        (ctx->seq_offset[ctx->restart_intervals - 1])*(ctx->avctx->channels);
+    DecodingParams *seq_dp = ctx->decoding_params + ctx->seq_offset[0] * ctx->avctx->channels;
+    ChannelParams *seq_cp = ctx->channel_params + ctx->seq_offset[0] * ctx->avctx->channels;
 
     for (unsigned int index = 0; index < ctx->seq_size[ctx->restart_intervals-1]; index++) {
         memcpy(&ctx->major_decoding_params[index], seq_dp + index, sizeof(DecodingParams));
@@ -2063,7 +2058,6 @@ static void process_major_frame(MLPEncodeContext *ctx)
 {
     ctx->sample_buffer = ctx->major_inout_buffer;
 
-    ctx->starting_frame_index = 0;
     ctx->number_of_frames = ctx->major_number_of_frames;
     ctx->number_of_samples = ctx->major_frame_size;
 
@@ -2146,27 +2140,18 @@ input_and_return:
     restart_frame = (ctx->frame_index + 1) % ctx->min_restart_interval;
 
     if (!restart_frame) {
-        for (unsigned int seq_index = 0;
-             seq_index < ctx->restart_intervals && (seq_index * ctx->min_restart_interval) <= ctx->avctx->frame_number;
-             seq_index++) {
+        for (unsigned int seq_index = 0; seq_index < ctx->restart_intervals; seq_index++) {
             unsigned int number_of_samples;
 
             ctx->sample_buffer = ctx->major_scratch_buffer;
             ctx->inout_buffer = ctx->major_inout_buffer;
-            ctx->seq_index = seq_index;
 
-            ctx->starting_frame_index = (ctx->avctx->frame_number - (ctx->avctx->frame_number % ctx->min_restart_interval)
-                                      - (seq_index * ctx->min_restart_interval)) % ctx->max_restart_interval;
             ctx->number_of_frames = ctx->next_major_number_of_frames;
             ctx->number_of_subblocks = ctx->next_major_number_of_frames + 1;
 
-            ctx->seq_channel_params = (ChannelParams *) ctx->channel_params +
-                                      (ctx->frame_index / ctx->min_restart_interval)*(ctx->sequence_size)*(ctx->avctx->channels) +
-                                      (ctx->seq_offset[seq_index])*(ctx->avctx->channels);
+            ctx->seq_channel_params = ctx->channel_params + ctx->seq_offset[seq_index] * ctx->avctx->channels;
 
-            ctx->seq_decoding_params = (DecodingParams *) ctx->decoding_params +
-                                       (ctx->frame_index / ctx->min_restart_interval)*(ctx->sequence_size) +
-                                       (ctx->seq_offset[seq_index]);
+            ctx->seq_decoding_params = ctx->decoding_params + ctx->seq_offset[seq_index];
 
             number_of_samples = avctx->frame_size * ctx->number_of_frames;
             ctx->number_of_samples = number_of_samples;
