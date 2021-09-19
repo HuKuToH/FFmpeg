@@ -1112,6 +1112,8 @@ SwsContext *sws_alloc_context(void)
     if (c) {
         c->av_class = &ff_sws_context_class;
         av_opt_set_defaults(c);
+        atomic_init(&c->stride_unaligned_warned, 0);
+        atomic_init(&c->data_unaligned_warned,   0);
     }
 
     return c;
@@ -1213,6 +1215,8 @@ static int context_init_threaded(SwsContext *c,
         c->slice_ctx[i] = sws_alloc_context();
         if (!c->slice_ctx[i])
             return AVERROR(ENOMEM);
+
+        c->slice_ctx[i]->parent = c;
 
         ret = av_opt_copy((void*)c->slice_ctx[i], (void*)c);
         if (ret < 0)
