@@ -15374,6 +15374,9 @@ Set morphological transform to apply, can be:
 @item dilate
 @item open
 @item close
+@item gradient
+@item tophat
+@item blackhat
 @end table
 Default is @code{erode}.
 
