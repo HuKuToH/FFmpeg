@@ -127,23 +127,6 @@ static av_cold int init(AVFilterContext *ctx)
     return 0;
 }
 
-static int query_formats(AVFilterContext *ctx)
-{
-    static const enum AVSampleFormat sample_fmts[] = {
-        AV_SAMPLE_FMT_DBLP,
-        AV_SAMPLE_FMT_NONE
-    };
-    int ret = ff_set_common_all_channel_counts(ctx);
-    if (ret < 0)
-        return ret;
-
-    ret = ff_set_common_formats_from_list(ctx, sample_fmts);
-    if (ret < 0)
-        return ret;
-
-    return ff_set_common_all_samplerates(ctx);
-}
-
 static inline int frame_size(int sample_rate, int frame_len_msec)
 {
     const int frame_size = lrint((double)sample_rate * (frame_len_msec / 1000.0));
@@ -874,13 +857,13 @@ static const AVFilterPad avfilter_af_dynaudnorm_outputs[] = {
 const AVFilter ff_af_dynaudnorm = {
     .name          = "dynaudnorm",
     .description   = NULL_IF_CONFIG_SMALL("Dynamic Audio Normalizer."),
-    .query_formats = query_formats,
     .priv_size     = sizeof(DynamicAudioNormalizerContext),
     .init          = init,
     .uninit        = uninit,
     .activate      = activate,
     FILTER_INPUTS(avfilter_af_dynaudnorm_inputs),
     FILTER_OUTPUTS(avfilter_af_dynaudnorm_outputs),
+    FILTER_SINGLE_SAMPLEFMT(AV_SAMPLE_FMT_DBLP),
     .priv_class    = &dynaudnorm_class,
     .flags         = AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL,
     .process_command = process_command,
