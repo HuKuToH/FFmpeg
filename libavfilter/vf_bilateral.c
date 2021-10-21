@@ -143,7 +143,6 @@ static int config_input(AVFilterLink *inlink)
 
 #define BILATERAL(type, name)                                                           \
 static void bilateral_##name(BilateralContext *s, const uint8_t *ssrc, uint8_t *ddst,   \
-                             float sigma_spatial, float sigma_range,                    \
                              int width, int height, int src_linesize, int dst_linesize) \
 {                                                                                       \
     type *dst = (type *)ddst;                                                           \
@@ -186,11 +185,11 @@ static void bilateral_##name(BilateralContext *s, const uint8_t *ssrc, uint8_t *
             *temp_factor_x++ = fc = inv_alpha_ + alpha_ * fp;                             \
             fp = fc;                                                                      \
         }                                                                                 \
-        --temp_x; *temp_x = 0.5f*((*temp_x) + (*--in_x));                                 \
+        --temp_x; *temp_x = ((*temp_x) + (*--in_x));                                      \
         tpr = *--texture_x;                                                               \
         ypr = *in_x;                                                                      \
                                                                                           \
-        --temp_factor_x; *temp_factor_x = 0.5f*((*temp_factor_x) + 1);                    \
+        --temp_factor_x; *temp_factor_x = ((*temp_factor_x) + 1);                         \
         fp = 1;                                                                           \
                                                                                           \
         for (int x = width - 2; x >= 0; x--) {                                            \
@@ -200,13 +199,13 @@ static void bilateral_##name(BilateralContext *s, const uint8_t *ssrc, uint8_t *
             float alpha_ = range_table[range_dist];                                       \
                                                                                           \
             ycr = inv_alpha_ * (*--in_x) + alpha_ * ypr;                                  \
-            --temp_x; *temp_x = 0.5f*((*temp_x) + ycr);                                   \
+            --temp_x; *temp_x = ((*temp_x) + ycr);                                        \
             tpr = tcr;                                                                    \
             ypr = ycr;                                                                    \
                                                                                           \
             fc = inv_alpha_ + alpha_*fp;                                                  \
             --temp_factor_x;                                                              \
-            *temp_factor_x = 0.5f*((*temp_factor_x) + fc);                                \
+            *temp_factor_x = ((*temp_factor_x) + fc);                                     \
             fp = fc;                                                                      \
         }                                                                                 \
     }                                                                                     \
@@ -238,14 +237,14 @@ static void bilateral_##name(BilateralContext *s, const uint8_t *ssrc, uint8_t *
     ypf = line_factor_b;                                                                  \
     memcpy(ypf, &in_factor[h1 * width], sizeof(float) * width);                           \
     for (int x = 0; x < width; x++)                                                       \
-        map_factor_b[h1 * width + x] = 0.5f*(map_factor_b[h1 * width + x] + ypf[x]);      \
+        map_factor_b[h1 * width + x] = (map_factor_b[h1 * width + x] + ypf[x]);           \
                                                                                           \
     ycy = slice_factor_a;                                                                 \
     ypy = slice_factor_b;                                                                 \
     memcpy(ypy, &img_temp[h1 * width], sizeof(float) * width);                            \
     for (int x = 0, k = 0; x < width; x++) {                                              \
         int idx = h1 * width + x;                                                         \
-        img_out_f[idx] = 0.5f*(img_out_f[idx] + ypy[k++]) / map_factor_b[h1 * width + x]; \
+        img_out_f[idx] = (img_out_f[idx] + ypy[k++]) / map_factor_b[h1 * width + x];      \
     }                                                                                     \
                                                                                           \
     for (int y = h1 - 1; y >= 0; y--) {                                                   \
@@ -270,11 +269,11 @@ static void bilateral_##name(BilateralContext *s, const uint8_t *ssrc, uint8_t *
             float ycc, fcc = inv_alpha_*(*xcf++) + alpha_*(*ypf_++);                      \
                                                                                           \
             *ycf_++ = fcc;                                                                \
-            *factor_ = 0.5f * (*factor_ + fcc);                                           \
+            *factor_ = (*factor_ + fcc);                                                  \
                                                                                           \
             ycc = inv_alpha_*(*xcy++) + alpha_*(*ypy_++);                                 \
             *ycy_++ = ycc;                                                                \
-            *out_ = 0.5f * (*out_ + ycc) / (*factor_);                                    \
+            *out_ = (*out_ + ycc) / (*factor_);                                           \
             out_++;                                                                       \
             factor_++;                                                                    \
         }                                                                                 \
@@ -285,7 +284,7 @@ static void bilateral_##name(BilateralContext *s, const uint8_t *ssrc, uint8_t *
                                                                                           \
     for (int i = 0; i < height; i++)                                                      \
         for (int j = 0; j < width; j++)                                                   \
-            dst[j + i * dst_linesize] = img_out_f[i * width + j];                         \
+            dst[j + i * dst_linesize] = lrintf(img_out_f[i * width + j]);                 \
 }
 
 BILATERAL(uint8_t, byte)
@@ -314,11 +313,11 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         }
 
         if (s->depth <= 8)
-           bilateral_byte(s, in->data[plane], out->data[plane], s->sigmaS, s->sigmaR,
+           bilateral_byte(s, in->data[plane], out->data[plane],
                       s->planewidth[plane], s->planeheight[plane],
                       in->linesize[plane], out->linesize[plane]);
         else
-           bilateral_word(s, in->data[plane], out->data[plane], s->sigmaS, s->sigmaR,
+           bilateral_word(s, in->data[plane], out->data[plane],
                       s->planewidth[plane], s->planeheight[plane],
                       in->linesize[plane] / 2, out->linesize[plane] / 2);
     }
