@@ -19,6 +19,13 @@
 #define VK_NO_PROTOTYPES
 #define VK_ENABLE_BETA_EXTENSIONS
 
+#ifdef _WIN32
+#include <windows.h> /* Included to prevent conflicts with CreateSemaphore */
+#include "compat/w32dlfcn.h"
+#else
+#include <dlfcn.h>
+#endif
+
 #include <unistd.h>
 
 #include "config.h"
@@ -31,12 +38,6 @@
 #include "hwcontext_vulkan.h"
 
 #include "vulkan_loader.h"
-
-#ifdef _WIN32
-#include "compat/w32dlfcn.h"
-#else
-#include <dlfcn.h>
-#endif
 
 #if CONFIG_LIBDRM
 #include <xf86drm.h>
@@ -1589,15 +1590,9 @@ static void vulkan_frame_free(void *opaque, uint8_t *data)
     FFVulkanFunctions *vk = &p->vkfn;
     int planes = av_pix_fmt_count_planes(hwfc->sw_format);
 
-    VkSemaphoreWaitInfo wait_info = {
-        .sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-        .flags          = 0x0,
-        .pSemaphores    = f->sem,
-        .pValues        = f->sem_value,
-        .semaphoreCount = planes,
-    };
-
-    vk->WaitSemaphores(hwctx->act_dev, &wait_info, UINT64_MAX);
+    /* We could use vkWaitSemaphores, but the validation layer seems to have
+     * issues tracking command buffer execution state on uninit. */
+    vk->DeviceWaitIdle(hwctx->act_dev);
 
     vulkan_free_internal(f->internal);
 
