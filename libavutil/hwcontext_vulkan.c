@@ -1108,6 +1108,8 @@ static int submit_exec_ctx(AVHWFramesContext *hwfc, VulkanExecCtx *cmd,
 
     ret = vk->QueueSubmit(q->queue, 1, s_info, q->fence);
     if (ret != VK_SUCCESS) {
+        av_log(hwfc, AV_LOG_ERROR, "Queue submission failure: %s\n",
+               vk_ret2str(ret));
         unref_exec_ctx_deps(hwfc, cmd);
         return AVERROR_EXTERNAL;
     }
@@ -2216,6 +2218,16 @@ static void vulkan_unmap_from(AVHWFramesContext *hwfc, HWMapDescriptor *hwmap)
     VulkanDevicePriv *p = hwfc->device_ctx->internal->priv;
     FFVulkanFunctions *vk = &p->vkfn;
 
+    VkSemaphoreWaitInfo wait_info = {
+        .sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+        .flags          = 0x0,
+        .pSemaphores    = map->frame->sem,
+        .pValues        = map->frame->sem_value,
+        .semaphoreCount = planes,
+    };
+
+    vk->WaitSemaphores(hwctx->act_dev, &wait_info, UINT64_MAX);
+
     for (int i = 0; i < planes; i++) {
         vk->DestroyImage(hwctx->act_dev, map->frame->img[i], hwctx->alloc);
         vk->FreeMemory(hwctx->act_dev, map->frame->mem[i], hwctx->alloc);
@@ -2223,6 +2235,7 @@ static void vulkan_unmap_from(AVHWFramesContext *hwfc, HWMapDescriptor *hwmap)
     }
 
     av_freep(&map->frame);
+    av_free(map);
 }
 
 static const struct {
