@@ -18,7 +18,7 @@
 
 #include "libavutil/random_seed.h"
 #include "libavutil/opt.h"
-#include "vulkan.h"
+#include "vulkan_filter.h"
 #include "internal.h"
 
 #define CGS 32
@@ -111,10 +111,12 @@ static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in)
 
         shd = ff_vk_init_shader(s->pl_hor, "avgblur_compute_hor",
                                 VK_SHADER_STAGE_COMPUTE_BIT);
+        if (!shd)
+            return AVERROR(ENOMEM);
 
         ff_vk_set_compute_shader_sizes(shd, (int [3]){ CGS, 1, 1 });
 
-        RET(ff_vk_add_descriptor_set(vkctx, s->pl_hor, shd, desc_i, 2, 0));
+        RET(ff_vk_add_descriptor_set(vkctx, s->pl_hor, shd, desc_i, FF_ARRAY_ELEMS(desc_i), 0));
 
         GLSLF(0, #define FILTER_RADIUS (%i)                     ,s->size_x - 1);
         GLSLC(0, #define INC(x) (ivec2(x, 0))                                 );
@@ -154,10 +156,12 @@ static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in)
 
         shd = ff_vk_init_shader(s->pl_ver, "avgblur_compute_ver",
                                 VK_SHADER_STAGE_COMPUTE_BIT);
+        if (!shd)
+            return AVERROR(ENOMEM);
 
         ff_vk_set_compute_shader_sizes(shd, (int [3]){ 1, CGS, 1 });
 
-        RET(ff_vk_add_descriptor_set(vkctx, s->pl_ver, shd, desc_i, 2, 0));
+        RET(ff_vk_add_descriptor_set(vkctx, s->pl_ver, shd, desc_i, FF_ARRAY_ELEMS(desc_i), 0));
 
         GLSLF(0, #define FILTER_RADIUS (%i)                     ,s->size_y - 1);
         GLSLC(0, #define INC(x) (ivec2(0, x))                                 );
@@ -208,6 +212,10 @@ static int process_frames(AVFilterContext *avctx, AVFrame *out_f, AVFrame *tmp_f
     AVVkFrame *in = (AVVkFrame *)in_f->data[0];
     AVVkFrame *tmp = (AVVkFrame *)tmp_f->data[0];
     AVVkFrame *out = (AVVkFrame *)out_f->data[0];
+
+    const VkFormat *input_formats = av_vkfmt_from_pixfmt(s->vkctx.input_format);
+    const VkFormat *output_formats = av_vkfmt_from_pixfmt(s->vkctx.output_format);
+
     int planes = av_pix_fmt_count_planes(s->vkctx.output_format);
 
     /* Update descriptors and init the exec context */
@@ -217,17 +225,17 @@ static int process_frames(AVFilterContext *avctx, AVFrame *out_f, AVFrame *tmp_f
     for (int i = 0; i < planes; i++) {
         RET(ff_vk_create_imageview(vkctx, s->exec,
                                    &s->input_images[i].imageView, in->img[i],
-                                   av_vkfmt_from_pixfmt(s->vkctx.input_format)[i],
+                                   input_formats[i],
                                    ff_comp_identity_map));
 
         RET(ff_vk_create_imageview(vkctx, s->exec,
                                    &s->tmp_images[i].imageView, tmp->img[i],
-                                   av_vkfmt_from_pixfmt(s->vkctx.output_format)[i],
+                                   output_formats[i],
                                    ff_comp_identity_map));
 
         RET(ff_vk_create_imageview(vkctx, s->exec,
                                    &s->output_images[i].imageView, out->img[i],
-                                   av_vkfmt_from_pixfmt(s->vkctx.output_format)[i],
+                                   output_formats[i],
                                    ff_comp_identity_map));
 
         s->input_images[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

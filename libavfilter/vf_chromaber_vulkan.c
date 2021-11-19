@@ -18,7 +18,7 @@
 
 #include "libavutil/random_seed.h"
 #include "libavutil/opt.h"
-#include "vulkan.h"
+#include "vulkan_filter.h"
 #include "internal.h"
 
 #define CGROUPS (int [3]){ 32, 32, 1 }
@@ -126,7 +126,7 @@ static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in)
         ff_vk_add_push_constant(s->pl, 0, sizeof(s->opts),
                                 VK_SHADER_STAGE_COMPUTE_BIT);
 
-        RET(ff_vk_add_descriptor_set(vkctx, s->pl, shd, desc_i, 2, 0)); /* set 0 */
+        RET(ff_vk_add_descriptor_set(vkctx, s->pl, shd, desc_i, FF_ARRAY_ELEMS(desc_i), 0)); /* set 0 */
 
         GLSLD(   distort_chroma_kernel                                        );
         GLSLC(0, void main()                                                  );
@@ -180,6 +180,8 @@ static int process_frames(AVFilterContext *avctx, AVFrame *out_f, AVFrame *in_f)
     AVVkFrame *in = (AVVkFrame *)in_f->data[0];
     AVVkFrame *out = (AVVkFrame *)out_f->data[0];
     int planes = av_pix_fmt_count_planes(s->vkctx.output_format);
+    const VkFormat *input_formats = av_vkfmt_from_pixfmt(s->vkctx.input_format);
+    const VkFormat *ouput_formats = av_vkfmt_from_pixfmt(s->vkctx.output_format);
 
     /* Update descriptors and init the exec context */
     ff_vk_start_exec_recording(vkctx, s->exec);
@@ -188,12 +190,12 @@ static int process_frames(AVFilterContext *avctx, AVFrame *out_f, AVFrame *in_f)
     for (int i = 0; i < planes; i++) {
         RET(ff_vk_create_imageview(vkctx, s->exec,
                                    &s->input_images[i].imageView, in->img[i],
-                                   av_vkfmt_from_pixfmt(s->vkctx.input_format)[i],
+                                   input_formats[i],
                                    ff_comp_identity_map));
 
         RET(ff_vk_create_imageview(vkctx, s->exec,
                                    &s->output_images[i].imageView, out->img[i],
-                                   av_vkfmt_from_pixfmt(s->vkctx.output_format)[i],
+                                   ouput_formats[i],
                                    ff_comp_identity_map));
 
         s->input_images[i].imageLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
