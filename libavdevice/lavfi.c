@@ -150,7 +150,7 @@ av_cold static int lavfi_read_header(AVFormatContext *avctx)
         if (avctx->protocol_whitelist && (ret = av_dict_set(&options, "protocol_whitelist", avctx->protocol_whitelist, 0)) < 0)
             goto end;
         ret = avio_open2(&avio, lavfi->graph_filename, AVIO_FLAG_READ, &avctx->interrupt_callback, &options);
-        av_dict_set(&options, "protocol_whitelist", NULL, 0);
+        av_dict_free(&options);
         if (ret < 0)
             goto end;
         av_bprint_init(&graph_file_pb, 0, AV_BPRINT_SIZE_UNLIMITED);
@@ -356,8 +356,6 @@ end:
     av_free(pix_fmts);
     avfilter_inout_free(&input_links);
     avfilter_inout_free(&output_links);
-    if (ret < 0)
-        lavfi_read_close(avctx);
     return ret;
 }
 
@@ -507,4 +505,5 @@ const AVInputFormat ff_lavfi_demuxer = {
     .read_close     = lavfi_read_close,
     .flags          = AVFMT_NOFILE,
     .priv_class     = &lavfi_class,
+    .flags_internal = FF_FMT_INIT_CLEANUP,
 };
