@@ -147,7 +147,7 @@ float dts_error_threshold   = 3600*30;
 
 int audio_volume      = 256;
 int audio_sync_method = 0;
-int video_sync_method = VSYNC_AUTO;
+enum VideoSyncMethod video_sync_method = VSYNC_AUTO;
 float frame_drop_threshold = 0;
 int do_benchmark      = 0;
 int do_benchmark_all  = 0;
@@ -1731,7 +1731,7 @@ static OutputStream *new_video_stream(OptionsContext *o, AVFormatContext *oc, in
 
     if ((frame_rate || max_frame_rate) &&
         video_sync_method == VSYNC_PASSTHROUGH)
-        av_log(NULL, AV_LOG_ERROR, "Using -vsync 0 and -r/-fpsmax can produce invalid output files\n");
+        av_log(NULL, AV_LOG_ERROR, "Using -vsync passthrough and -r/-fpsmax can produce invalid output files\n");
 
     MATCH_PER_STREAM_OPT(frame_aspect_ratios, str, frame_aspect_ratio, oc, st);
     if (frame_aspect_ratio) {
@@ -1895,6 +1895,30 @@ static OutputStream *new_video_stream(OptionsContext *o, AVFormatContext *oc, in
         ost->top_field_first = -1;
         MATCH_PER_STREAM_OPT(top_field_first, i, ost->top_field_first, oc, st);
 
+        ost->vsync_method = video_sync_method;
+        if (ost->vsync_method == VSYNC_AUTO) {
+            if (!strcmp(oc->oformat->name, "avi")) {
+                ost->vsync_method = VSYNC_VFR;
+            } else {
+                ost->vsync_method = (oc->oformat->flags & AVFMT_VARIABLE_FPS)       ?
+                                     ((oc->oformat->flags & AVFMT_NOTIMESTAMPS) ?
+                                      VSYNC_PASSTHROUGH : VSYNC_VFR)                :
+                                     VSYNC_CFR;
+            }
+
+            if (ost->source_index >= 0 && ost->vsync_method == VSYNC_CFR) {
+                const InputStream *ist = input_streams[ost->source_index];
+                const InputFile *ifile = input_files[ist->file_index];
+
+                if (ifile->nb_streams == 1 && ifile->input_ts_offset == 0)
+                    ost->vsync_method = VSYNC_VSCFR;
+            }
+
+            if (ost->vsync_method == VSYNC_CFR && copy_ts) {
+                ost->vsync_method = VSYNC_VSCFR;
+            }
+        }
+        ost->is_cfr = (ost->vsync_method == VSYNC_CFR || ost->vsync_method == VSYNC_VSCFR);
 
         ost->avfilter = get_ost_filters(o, oc, ost);
         if (!ost->avfilter)
@@ -3191,8 +3215,11 @@ static int opt_vsync(void *optctx, const char *opt, const char *arg)
     else if (!av_strcasecmp(arg, "passthrough")) video_sync_method = VSYNC_PASSTHROUGH;
     else if (!av_strcasecmp(arg, "drop"))        video_sync_method = VSYNC_DROP;
 
-    if (video_sync_method == VSYNC_AUTO)
+    if (video_sync_method == VSYNC_AUTO) {
         video_sync_method = parse_number_or_die("vsync", arg, OPT_INT, VSYNC_AUTO, VSYNC_VFR);
+        av_log(NULL, AV_LOG_WARNING, "Passing a number to -vsync is deprecated,"
+               " use a string argument as described in the manual.\n");
+    }
     return 0;
 }
 
